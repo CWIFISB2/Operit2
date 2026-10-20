@@ -111,6 +111,22 @@ jobs:
         shell: pwsh
         run: fvm install --skip-pub-get
 
+      - name: Create Python virtual environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --upgrade pip
+          if (Test-Path requirements.txt) {
+            .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+          }
+          .\.venv\Scripts\python.exe --version
+      - name: Install workflow plugin dependencies
+        shell: pwsh
+        run: |
+          corepack enable
+          cd plugins/packages/buildin/workflow
+          corepack pnpm install --frozen-lockfile
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
