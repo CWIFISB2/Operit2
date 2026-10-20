@@ -1743,7 +1743,6 @@ function assertCharacterState(value) {
     requireId(card.id, "card id");
     for (const id2 of card.attachedTagIds) if (!tagIds.has(id2)) throw new Error("Missing attached tag: " + id2);
     if (card.memoryBindingMode !== "CHARACTER" && card.memoryBindingMode !== "SHARED") throw new Error("Invalid memory binding mode");
-    if (card.memoryBindingMode === "SHARED" && !storeIds.has(requireId(card.sharedMemoryId, "shared memory id"))) throw new Error("Missing primary shared library");
     for (const mount2 of card.sharedMemoryMounts) if (!storeIds.has(mount2.sharedMemoryId)) throw new Error("Missing shared memory mount: " + mount2.sharedMemoryId);
   }
   for (const group of groups) {
@@ -2104,6 +2103,7 @@ function prepareVersionOne(storage, metadata, directory) {
       if (!Object.prototype.hasOwnProperty.call(identities2, key)) throw new Error("Missing migration reference: " + key);
       return identities2[key];
     }
+    const sourceStoreIds = new Set(state.stores.map((store) => store.id));
     for (const collection of configurationNames)
       for (const record2 of state[collection]) record2.id = identity3(collection, record2.id);
     function selection(value) {
@@ -2114,7 +2114,7 @@ function prepareVersionOne(storage, metadata, directory) {
     }
     for (const card of state.cards) {
       card.attachedTagIds = card.attachedTagIds.map((id2) => reference("tags", id2));
-      if (card.sharedMemoryId !== null) card.sharedMemoryId = reference("stores", card.sharedMemoryId);
+      if (card.sharedMemoryId !== null && sourceStoreIds.has(card.sharedMemoryId)) card.sharedMemoryId = reference("stores", card.sharedMemoryId);
       for (const mount2 of card.sharedMemoryMounts) mount2.sharedMemoryId = reference("stores", mount2.sharedMemoryId);
     }
     for (const group of state.groups)
@@ -5119,8 +5119,6 @@ function assertCharacterModelBinding(card) {
 function normalizedCharacter(card) {
   if (card.memoryBindingMode !== "CHARACTER" && card.memoryBindingMode !== "SHARED")
     throw new Error("\u8BB0\u5FC6\u7ED1\u5B9A\u6A21\u5F0F\u65E0\u6548");
-  if (card.memoryBindingMode === "SHARED")
-    requireId(card.sharedMemoryId, "\u5171\u4EAB\u8BB0\u5FC6\u5E93");
   if (card.ttsConfigId !== null) requireId(card.ttsConfigId, "TTS \u914D\u7F6E");
   if (card.themeConfigId !== null) requireId(card.themeConfigId, "\u4E3B\u9898\u914D\u7F6E");
   const policy = card.toolAccessConfig;
@@ -5161,6 +5159,7 @@ function saveCharacter(card, create, tagChanges, host) {
     assertCard(card);
     assertBoolean(create, "\u89D2\u8272\u65B0\u5EFA\u6807\u8BC6");
     let value = normalizedCharacter(card);
+    let validateMemoryBinding = create;
     if (create) {
       assertCharacterModelBinding(value);
       value = { ...value, id: "", createdAt: 0, updatedAt: 0 };
@@ -5169,6 +5168,7 @@ function saveCharacter(card, create, tagChanges, host) {
       const original = yield host.getCharacter(id2);
       assertCard(original);
       if (!sameCharacterModelBinding(original, value)) assertCharacterModelBinding(value);
+      validateMemoryBinding = original.memoryBindingMode !== value.memoryBindingMode || original.sharedMemoryId !== value.sharedMemoryId;
       value = {
         ...value,
         id: original.id,
@@ -5199,7 +5199,7 @@ function saveCharacter(card, create, tagChanges, host) {
     records2(tags, assertTag, "\u6807\u7B7E\u5217\u8868");
     records2(stores, assertStore, "\u5171\u4EAB\u8BB0\u5FC6\u5E93\u5217\u8868");
     const plan = prepareTagChanges(value.attachedTagIds, tagChanges, tags);
-    if (value.memoryBindingMode === "SHARED")
+    if (validateMemoryBinding && value.memoryBindingMode === "SHARED")
       findRecord(
         stores,
         requireId(value.sharedMemoryId, "\u5171\u4EAB\u8BB0\u5FC6\u5E93\u6807\u8BC6"),
