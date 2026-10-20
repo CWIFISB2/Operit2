@@ -126,6 +126,20 @@ jobs:
           corepack enable
           cd plugins/packages/buildin/workflow
           corepack pnpm install --frozen-lockfile
+      - name: Install repository TypeScript compiler
+        shell: pwsh
+        run: |
+          $dest = ".ci-tools/typescript"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Push-Location $dest
+          npm init -y | Out-Null
+          npm install --no-audit --no-fund typescript@5
+          Pop-Location
+          $tsc = Join-Path $dest "node_modules/.bin/tsc.cmd"
+          if (-not (Test-Path -LiteralPath $tsc)) {
+            throw "tsc.cmd was not installed at $tsc"
+          }
+          & $tsc --version
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
